@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"uas/config"
 	"uas/database"
 	"uas/routes"
@@ -27,4 +28,7 @@ func main() {
 
 	// routes
 	routes.SetupRoutes(app, postgreSQL)
+
+	// Server
+	log.Fatal(app.Listen(":3000"))
 }

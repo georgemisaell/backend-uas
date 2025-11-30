@@ -16,6 +16,7 @@ func main() {
 
 	// Database postgre	SQL
 	postgreSQL := database.ConnectDB()
+	mongoDB := database.ConnectMongoDB()
 
 	// Inisialisasi fiber
 	app := fiber.New(fiber.Config{
@@ -27,7 +28,7 @@ func main() {
 	})
 
 	// routes
-	routes.SetupRoutes(app, postgreSQL)
+	routes.SetupRoutes(app, postgreSQL, mongoDB)
 
 	// Server
 	log.Fatal(app.Listen(":3000"))

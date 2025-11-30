@@ -69,50 +69,121 @@ func GetUserByID(c *fiber.Ctx, db *sql.DB) error {
 }
 
 func CreateUser(c *fiber.Ctx, db *sql.DB) error {
-	var req models.CreateUser
+    var req models.CreateUserRequest
 
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Format data tidak valid",
-			"success": false,
-		})
-	}
+    // 1. Parsing Request
+    if err := c.BodyParser(&req); err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "message": "Format data tidak valid",
+            "success": false,
+        })
+    }
 
-	hashedPwd, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Gagal mengenkripsi password",
-			"success": false,
-		})
-	}
+    // 2. Hash Password
+    hashedPwd, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "message": "Gagal mengenkripsi password",
+            "success": false,
+        })
+    }
 
-	newUser := models.User{
-		ID:           uuid.New(),
-		Username:     req.Username,
-		Email:        req.Email,
-		PasswordHash: string(hashedPwd),
-		FullName:     req.FullName,
-		RoleID:       req.RoleID,
-		RoleName: 		req.RoleName,
-		IsActive:     true,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-	}
+    // 3. Mulai Transaksi
+    tx, err := db.Begin()
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "message": "Gagal memulai transaksi database",
+            "success": false,
+        })
+    }
+    
+    defer func() {
+        if err != nil {
+            tx.Rollback()
+        }
+    }()
 
-	err = repository.CreateUser(db, newUser)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Gagal menyimpan data user",
-			"success": false,
-			"error":   err.Error(),
-		})
-	}
+    userID := uuid.New() 
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "User berhasil dibuat",
-		"success": true,
-		"data":    newUser,
-	})
+    parsedRoleID, err := uuid.Parse(req.RoleID)
+    if err != nil {
+         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "message": "Format Role ID salah",
+            "success": false,
+        })
+    }
+
+    newUser := models.User{
+        ID:           userID,
+        Username:     req.Username,
+        Email:        req.Email,
+        PasswordHash: string(hashedPwd),
+        FullName:     req.FullName,
+        RoleID:       parsedRoleID,
+        RoleName:     req.RoleName,
+        IsActive:     true,
+        CreatedAt:    time.Now(),
+        UpdatedAt:    time.Now(),
+    }
+
+    err = repository.CreateUser(tx, newUser)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "message": "Gagal menyimpan data user",
+            "success": false,
+            "error":   err.Error(),
+        })
+    }
+
+    if req.RoleName == "Mahasiswa" && req.Student != nil {
+        newStudent := models.Student{
+            ID:           uuid.New(),
+            UserID:       userID,
+            StudentID:    req.Student.StudentID,
+            ProgramStudy: req.Student.ProgramStudy,
+            AcademicYear: req.Student.AcademicYear,
+            AdvisorID: req.Student.AdvisorID,
+            CreatedAt:    time.Now(),
+        }
+
+        if err = repository.CreateStudent(tx, newStudent); err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+                "message": "Gagal menyimpan data mahasiswa",
+                "success": false,
+                "error":   err.Error(),
+            })
+        }
+
+    } else if req.RoleName == "Dosen Wali" && req.Lecture != nil {
+        newLecture := models.Lecture{
+            ID:         uuid.New(),
+            UserID:     userID,
+            LectureID:  req.Lecture.LectureID,
+            Department: req.Lecture.Department,
+            CreatedAt:  time.Now(),
+        }
+
+        if err = repository.CreateLecture(tx, newLecture); err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+                "message": "Gagal menyimpan data dosen",
+                "success": false,
+                "error":   err.Error(),
+            })
+        }
+    }
+
+    if err = tx.Commit(); err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "message": "Gagal commit transaksi",
+            "success": false,
+        })
+    }
+
+    return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+        "message": "User berhasil dibuat",
+        "success": true,
+        "data":    newUser,
+    })
 }
 
 func UpdateUser(c *fiber.Ctx, db *sql.DB) error {

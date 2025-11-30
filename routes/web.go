@@ -6,9 +6,10 @@ import (
 	"uas/middleware"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func SetupRoutes(app *fiber.App, postgreSQL *sql.DB) {
+func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 
 	api := app.Group("/api/v1")
 
@@ -43,6 +44,9 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB) {
 	})
 
 	// Achievements
+	// api.Get("/achievement", func(c *fiber.Ctx) error {
+	// 	return services.GetAllUsers(c, mongoDB)
+	// })
 
-	 // Reports & Analytics 
+	// Reports & Analytics 
 }

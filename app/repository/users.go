@@ -77,7 +77,7 @@ func GetUserByID(db *sql.DB, id uuid.UUID) (models.User, error) {
 	return user, nil
 }
 
-func CreateUser(db *sql.DB, user models.User) error {
+func CreateUser(tx *sql.Tx, user models.User) error {
 	query := `
 		INSERT INTO users (
 			id, username, email, password_hash, full_name, role_id, is_active, created_at, updated_at
@@ -85,7 +85,7 @@ func CreateUser(db *sql.DB, user models.User) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
-	_, err := db.Exec(query,
+	_, err := tx.Exec(query,
 		user.ID,          
 		user.Username,
 		user.Email,

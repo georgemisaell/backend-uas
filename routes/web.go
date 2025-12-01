@@ -24,23 +24,23 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	protected := api.Group("", middleware.AuthRequired()) 
 
 	// Users (Admin)
-	protected.Get("/users", middleware.AdminOnly(), func(c *fiber.Ctx) error {
+	protected.Get("/users", middleware.RequirePermission("user:manage"), func(c *fiber.Ctx) error {
 		return services.GetAllUsers(c, postgreSQL)
 	})
 
-	protected.Get("/users/:id", middleware.AdminOnly(), func(c *fiber.Ctx) error {
+	protected.Get("/users/:id", middleware.RequirePermission("user:manage"), func(c *fiber.Ctx) error {
 		return services.GetUserByID(c, postgreSQL)
 	})
 
-	protected.Post("/users", middleware.AdminOnly(), func(c *fiber.Ctx) error {
+	protected.Post("/users", middleware.RequirePermission("user:manage"), func(c *fiber.Ctx) error {
 		return services.CreateUser(c, postgreSQL)
 	})
 
-	protected.Put("/users/:id", middleware.AdminOnly(), func(c *fiber.Ctx) error {
+	protected.Put("/users/:id", middleware.RequirePermission("user:manage"), func(c *fiber.Ctx) error {
 		return services.UpdateUser(c, postgreSQL)
 	})
 
-	protected.Delete("/users/:id", middleware.AdminOnly(), func(c *fiber.Ctx) error {
+	protected.Delete("/users/:id", middleware.RequirePermission("user:manage"), func(c *fiber.Ctx) error {
 			return services.DeleteUser(c, postgreSQL)
 	})
 

@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"strings"
+	"uas/app/repository"
 	"uas/utils"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 func AuthRequired() fiber.Handler {
@@ -42,41 +44,36 @@ func AuthRequired() fiber.Handler {
 	}
 }
 
-// Middleware untuk memerlukan role admin 
-func AdminOnly() fiber.Handler { 
-    return func(c *fiber.Ctx) error { 
-        role := c.Locals("role_name").(string) 
-        if role != "Admin" { 
-            return c.Status(403).JSON(fiber.Map{ 
-                "error": "Akses ditolak. Hanya admin yang diizinkan", 
-            }) 
-        } 
-        return c.Next() 
-    } 
-}
+// Menerima parameter string 'perm' (misal: "achievement:create")
+func RequirePermission(perm string) fiber.Handler {
+    return func(c *fiber.Ctx) error {
+        // 1. Ambil User ID dari Locals (yang diset oleh AuthRequired)
+        userIDLocal := c.Locals("user_id")
+        
+        if userIDLocal == nil {
+            return c.Status(401).JSON(fiber.Map{"error": "Unauthorized: User ID not found"})
+        }
 
-// Middleware untuk memerlukan role lecture 
-func Lecture() fiber.Handler { 
-    return func(c *fiber.Ctx) error { 
-        role := c.Locals("role_name").(string) 
-        if role != "Dosen Wali" { 
-            return c.Status(403).JSON(fiber.Map{ 
-                "error": "Akses ditolak. Hanya dosen dan admin yang diizinkan", 
-            }) 
-        } 
-        return c.Next() 
-    } 
-}
+        // Pastikan tipe datanya UUID
+        userID, ok := userIDLocal.(uuid.UUID)
+        if !ok {
+             return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error: Invalid User ID format"})
+        }
 
-// Middleware untuk memerlukan role student 
-func Student() fiber.Handler { 
-    return func(c *fiber.Ctx) error { 
-        role := c.Locals("role_name").(string) 
-        if role != "Mahasiswa" { 
-            return c.Status(403).JSON(fiber.Map{ 
-                "error": "Akses ditolak. Hanya mahasiswa dan admin yang diizinkan", 
-            }) 
-        } 
-        return c.Next() 
-    } 
+        // 2. Cek ke Database via Repository
+        allowed, err := repository.CheckPermission(userID, perm)
+        if err != nil {
+            return c.Status(500).JSON(fiber.Map{"error": "Gagal memverifikasi izin"})
+        }
+
+        // 3. Logika Allow/Deny
+        if !allowed {
+            return c.Status(403).JSON(fiber.Map{
+                "error": "Forbidden: Anda tidak memiliki izin '" + perm + "'",
+            })
+        }
+
+        // 4. Lanjut ke Controller
+        return c.Next()
+    }
 }

@@ -1,8 +1,20 @@
 package models
 
-// Definisikan nama role sebagai konstanta string
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type Role struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	CreatedAt   time.Time
+}
+
 const (
-    RoleAdmin     = "Admin"
-    RoleMahasiswa = "Mahasiswa"
-    RoleDosen     = "Dosen Wali"
+	RoleAdmin     = "Admin"
+	RoleMahasiswa = "Mahasiswa"
+	RoleDosen     = "Dosen Wali"
 )

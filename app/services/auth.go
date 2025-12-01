@@ -52,7 +52,6 @@ func Login(c *fiber.Ctx) error {
     })
 }
 
-// Handler untuk melihat profile user yang sedang login 
 func GetProfile(c *fiber.Ctx) error { 
     userID := c.Locals("user_id").(uuid.UUID) 
     username := c.Locals("username").(string) 

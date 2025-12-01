@@ -3,15 +3,13 @@ package repository
 import (
 	"uas/app/models"
 	"uas/database"
+
+	"github.com/google/uuid"
 )
 
-// GetUserByLoginInput mencari user & role berdasarkan username/email
 func Login(loginInput string) (models.User, error) {
     var user models.User
 
-    // Query kita pindahkan ke sini
-    // Note: Kita scan password_hash ke user.PasswordHash
-    // Pastikan struct User field PasswordHash ada tag `json:"-"` biar aman
     query := `
         SELECT 
             u.id, u.username, u.email, u.password_hash, u.full_name, 
@@ -25,7 +23,7 @@ func Login(loginInput string) (models.User, error) {
         &user.ID,
         &user.Username,
         &user.Email,
-        &user.PasswordHash, // Scan hash langsung ke struct (hidden field)
+        &user.PasswordHash,
         &user.FullName,
         &user.RoleID,
         &user.RoleName,
@@ -34,4 +32,27 @@ func Login(loginInput string) (models.User, error) {
     )
 
     return user, err
+}
+
+func CheckPermission(userID uuid.UUID, permissionName string) (bool, error) {
+    var exists bool
+
+    query := `
+        SELECT EXISTS (
+            SELECT 1
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            JOIN role_permissions rp ON r.id = rp.role_id
+            JOIN permissions p ON rp.permission_id = p.id
+            WHERE u.id = $1 
+              AND p.name = $2
+        )
+    `
+
+    err := database.ConnectDB().QueryRow(query, userID, permissionName).Scan(&exists)
+    if err != nil {
+        return false, err
+    }
+
+    return exists, nil
 }

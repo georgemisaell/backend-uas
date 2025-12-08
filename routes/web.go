@@ -13,12 +13,12 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 
 	api := app.Group("/api/v1")
 
-	// Autentikasi & Otorisasi (tidak perlu login)
+	// Autentikasi & Otorisasi 
+	// (tidak perlu login)
 	auth := api.Group("/auth")
 	auth.Post("/login", services.Login)
-	// (Perlu login)
+	auth.Post("/refresh", services.Refresh)
 	auth.Get("/profile", middleware.AuthRequired(), services.GetProfile)
-	auth.Post("/refresh", middleware.AuthRequired(), services.RefreshToken)
 
 	// Protected routes (perlu login) 
 	protected := api.Group("", middleware.AuthRequired()) 
@@ -47,15 +47,4 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	protected.Put("/users/:id/role", middleware.RequirePermission("user:manage"), func(c *fiber.Ctx) error {
 			return services.UpdateUserRole(c, postgreSQL)
 	})
-
-	// Achievements
-	// protected.Get("/achievements", middleware.RequirePermission("achievement:read"), func(c *fiber.Ctx) error {
-	// 	return services.GetAllAchievements(c, postgreSQL, mongoDB)
-	// })
-
-	// protected.Post("/achievements", middleware.RequirePermission("achievement:create"), func(c *fiber.Ctx) error {
-	// 	return services.CreateAchievement(c, postgreSQL, mongoDB)
-	// })
-
-	// Reports & Analytics 
 }

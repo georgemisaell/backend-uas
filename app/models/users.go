@@ -22,6 +22,13 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type UserResponseDTO struct {
+    ID       uuid.UUID `json:"id"`
+    Username string `json:"username"`
+    FullName string `json:"fullName"`
+    Role     string `json:"role"`
+}
+
 type CreateUserRequest struct {
 	// Data User
 	Username string `json:"username"`
@@ -62,8 +69,9 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct { 
-	User  User   `json:"user"` 
 	Token string `json:"token"`
+	RefreshToken string `json:"refreshToken"`
+	User  UserResponseDTO   `json:"user"` 
 }
 
 type JWTClaims struct { 
@@ -71,4 +79,8 @@ type JWTClaims struct {
 	Username string `json:"username"` 
 	RoleName string `json:"role_name"` 
 	jwt.RegisteredClaims
+}
+
+type RefreshTokenRequest struct {
+    RefreshToken string `json:"refreshToken"`
 }

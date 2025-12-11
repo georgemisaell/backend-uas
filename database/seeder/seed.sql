@@ -30,3 +30,33 @@ INSERT INTO users (username, email, password_hash, full_name, role_id) VALUES
     'George Administrator',
     (SELECT id FROM roles WHERE name = 'Admin' LIMIT 1)
 );
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Admin'),
+    (SELECT id FROM public.permissions WHERE name = 'users:create')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Admin'),
+    (SELECT id FROM public.permissions WHERE name = 'users:read')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Admin'),
+    (SELECT id FROM public.permissions WHERE name = 'users:update')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Admin'),
+    (SELECT id FROM public.permissions WHERE name = 'users:delete')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Admin'),
+    (SELECT id FROM public.permissions WHERE name = 'students:read')
+);

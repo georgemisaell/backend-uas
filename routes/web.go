@@ -2,6 +2,7 @@ package routes
 
 import (
 	"database/sql"
+	"uas/app/repository"
 	"uas/app/services"
 	"uas/middleware"
 
@@ -21,13 +22,19 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 
 	// Protected routes (perlu login) 
 	protected := api.Group("", middleware.AuthRequired()) 
-	userService := services.NewUserService(postgreSQL)
-
+	
 	// Users (Admin)
-	protected.Post("/users", userService.CreateUser)
-	protected.Get("/users", userService.GetAllUsers)
-	protected.Get("/users/:id", userService.GetUserByID)
-	protected.Put("/users/:id", userService.UpdateUser)
-	protected.Delete("/users/:id", userService.DeleteUser)
+	userService := services.NewUserService(postgreSQL)
+	protected.Post("/users", middleware.RequirePermission("users:create"), userService.CreateUser)
+	protected.Get("/users", middleware.RequirePermission("users:read"), userService.GetAllUsers)
+	protected.Get("/users/:id", middleware.RequirePermission("users:read"), userService.GetUserByID)
+	protected.Put("/users/:id", middleware.RequirePermission("users:update"), userService.UpdateUser)
+	protected.Delete("/users/:id", middleware.RequirePermission("users:delete"), userService.DeleteUser)
 	protected.Put("/users/:id/role", userService.UpdateUserRole)
+
+	// Students (Admin)
+	studentRepo := repository.NewStudentRepository(postgreSQL)
+	studentService := services.NewStudentService(studentRepo)
+	protected.Get("/students", middleware.RequirePermission("students:read"), studentService.GetStudents)
+	protected.Get("/students/:id", middleware.RequirePermission("students:read"), studentService.GetStudentByID)
 }

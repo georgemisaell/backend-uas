@@ -2,6 +2,8 @@ package services
 
 import (
 	"database/sql"
+	"strings"
+	"uas/app/models"
 	"uas/app/repository"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,6 +13,7 @@ import (
 type StudentService interface {
 	GetStudents(c *fiber.Ctx) error
 	GetStudentByID(c *fiber.Ctx) error
+	UpdateStudentAdvisor(c *fiber.Ctx) error
 }
 
 type studentService struct {
@@ -79,5 +82,66 @@ func (s *studentService) GetStudentByID(c *fiber.Ctx) error {
 		"message": "Data mahasiswa ditemukan",
 		"success": true,
 		"data":    student,
+	})
+}
+
+func (s *studentService) UpdateStudentAdvisor(c *fiber.Ctx) error {
+	// 1. Ambil Student ID dari URL
+	studentID := c.Params("id")
+	if _, err := uuid.Parse(studentID); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "Format Student ID tidak valid",
+			"success": false,
+		})
+	}
+
+	// 2. Parse Body untuk ambil Advisor ID baru
+	var req models.UpdateAdvisorRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "Format data JSON tidak valid",
+			"success": false,
+		})
+	}
+
+	// 3. Validasi Advisor ID
+	if _, err := uuid.Parse(req.AdvisorID); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"message": "Format Advisor ID tidak valid",
+			"success": false,
+		})
+	}
+
+	// 4. Panggil Repository
+	err := s.repo.UpdateStudentAdvisor(c.Context(), studentID, req.AdvisorID)
+	if err != nil {
+		// Handle jika student tidak ditemukan
+		if err.Error() == "student_not_found" {
+			return c.Status(404).JSON(fiber.Map{
+				"message": "Data mahasiswa tidak ditemukan",
+				"success": false,
+			})
+		}
+		
+		// Handle jika Advisor ID tidak ada di tabel lectures (Foreign Key Violation)
+		// Error message dari database biasanya mengandung "foreign key constraint"
+		if strings.Contains(err.Error(), "foreign key") {
+			return c.Status(400).JSON(fiber.Map{
+				"message": "ID Dosen Wali tidak ditemukan di database",
+				"success": false,
+			})
+		}
+
+		return c.Status(500).JSON(fiber.Map{
+			"message": "Gagal mengganti dosen wali",
+			"success": false,
+			"error":   err.Error(),
+		})
+	}
+
+	// 5. Sukses
+	return c.JSON(fiber.Map{
+		"message": "Dosen Wali berhasil diperbarui",
+		"success": true,
 	})
 }

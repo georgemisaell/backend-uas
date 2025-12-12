@@ -6,4 +6,5 @@ CREATE TABLE students (
 	academy_year VARCHAR(10),
 	advisor_id UUID REFERENCES lecturers(id),
 	created_at TIMESTAMP DEFAULT NOW()
+	updated_at TIMESTAMP DEFAULT NOW()
 );

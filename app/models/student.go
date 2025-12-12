@@ -28,3 +28,7 @@ type GetStudent struct {
 	AcademyYear  string    `json:"academy_year"`
 	IsActive     bool      `json:"is_active"`
 }
+
+type UpdateAdvisorRequest struct {
+	AdvisorID string `json:"advisor_id" validate:"required"`
+}

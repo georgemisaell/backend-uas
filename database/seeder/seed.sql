@@ -11,6 +11,7 @@ INSERT INTO permissions (name, resource, action, description) VALUES
 ('users:update',        'users',        'update', 'Mengedit user (termasuk assign role/advisor)'),
 ('users:delete',        'users',        'delete', 'Menghapus user'),
 ('students:read',       'students',     'read',   'Melihat data detail mahasiswa'),
+('students:update',      'students',    'update', 'Mengedit data detail mahasiswa'),
 ('lecturers:read',      'lecturers',    'read',   'Melihat data detail dosen'),
 ('achievements:read',   'achievements', 'read',   'Melihat daftar prestasi (Milik sendiri/Bimbingan)'),
 ('achievements:create', 'achievements', 'create', 'Membuat draft prestasi baru'),
@@ -59,4 +60,16 @@ INSERT INTO public.role_permissions (role_id, permission_id)
 VALUES (
     (SELECT id FROM public.roles WHERE name = 'Admin'),
     (SELECT id FROM public.permissions WHERE name = 'students:read')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Admin'),
+    (SELECT id FROM public.permissions WHERE name = 'students:update')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Admin'),
+    (SELECT id FROM public.permissions WHERE name = 'lecturers:read')
 );

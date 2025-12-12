@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"uas/app/models"
 )
@@ -30,6 +31,7 @@ func CreateStudent (tx *sql.Tx, student models.Student) error {
 type StudentRepository interface {
 	GetAllStudentsByRole(ctx context.Context, roleName string) ([]models.GetStudent, error)
 	GetStudentByID(ctx context.Context, id string) (models.GetStudent, error)
+	UpdateStudentAdvisor(ctx context.Context, studentID string, advisorID string) error
 }
 
 type studentRepository struct {
@@ -134,4 +136,27 @@ func (r *studentRepository) GetStudentByID(ctx context.Context, id string) (mode
 	}
 
 	return s, nil
+}
+
+func (r *studentRepository) UpdateStudentAdvisor(ctx context.Context, studentID string, advisorID string) error {
+	query := `
+		UPDATE students 
+		SET advisor_id = $1, updated_at = NOW()
+		WHERE id = $2
+	`
+
+	result, err := r.db.ExecContext(ctx, query, advisorID, studentID)
+	if err != nil {
+		return fmt.Errorf("gagal update dosen wali: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return errors.New("student_not_found")
+	}
+
+	return nil
 }

@@ -41,7 +41,7 @@ Buat file `.env` di root folder project dan isi konfigurasi berikut:
 
 ```env
 APP_PORT=3000
-API_KEY=georgemisael
+API_KEY={isi bebas}
 POSGRES_URI=postgres://postgres:root@localhost:5432/uas?sslmode=disable
 MONGO_URI=mongodb://localhost:27017/uas
 JWT_SECRET=my-secret-key-min-32-characters-long-omgggg
@@ -60,6 +60,6 @@ migrate -path database/migrations -database "postgres://postgres:root@localhost:
 
 Import data awal dari file seedernya.sql yang ada di folder database.
 
-- Buka file database/seeder.sql
+- Buka file database/seeder/seed.sql
 - Execute/run query satu per satu dari paling atas.
 - Server akan berjalan di http://localhost:3000.

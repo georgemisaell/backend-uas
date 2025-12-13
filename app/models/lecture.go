@@ -29,3 +29,7 @@ type GetLecture struct {
 	IsActive   bool      `json:"is_active"`
 	CreatedAt  time.Time `json:"created_at"`
 }
+
+type RejectAchievementRequest struct {
+	RejectionNote string `json:"rejection_note" validate:"required"`
+}

@@ -45,11 +45,15 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	protected.Get("/lecturers", middleware.RequirePermission("lecturers:read"), lecturerService.GetLecturers)
 	protected.Get("/lecturers/:id/advisees", middleware.RequirePermission("lecturers:read"), lecturerService.GetLecturerAdvisees)
 
-	// Adchievements (Mahasiswa)
+	// Achievements (Mahasiswa)
 	achRepo := repository.NewAchievementRepository(postgreSQL, mongoDB)
 	achService := services.NewAchievementService(achRepo)
 	protected.Post("/achievements", middleware.RequirePermission("achievements:create"), achService.CreateAchievement)
 	protected.Put("/achievements/:id", middleware.RequirePermission("achievements:update"), achService.UpdateAchievement)
 	protected.Delete("/achievements/:id", middleware.RequirePermission("achievements:delete"), achService.DeleteAchievement)
 	protected.Post("/achievements/:id/submit", middleware.RequirePermission("achievements:update"), achService.SubmitAchievement)
+
+	// Achievements (Dosen Wali)
+	protected.Post("/achievements/:id/verify", middleware.RequirePermission("achievements:verify"), achService.VerifyAchievement)
+	protected.Post("/achievements/:id/reject", middleware.RequirePermission("achievements:reject"), achService.RejectAchievement)
 }

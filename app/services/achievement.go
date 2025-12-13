@@ -4,6 +4,7 @@ import (
 	"time"
 	"uas/app/models"
 	"uas/app/repository"
+	"uas/helpers"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -15,6 +16,8 @@ type AchievementService interface {
 	UpdateAchievement(c *fiber.Ctx) error
   DeleteAchievement(c *fiber.Ctx) error
 	SubmitAchievement(c *fiber.Ctx) error
+	VerifyAchievement(c *fiber.Ctx) error
+	RejectAchievement(c *fiber.Ctx) error
 }
 
 type achievementService struct {
@@ -256,4 +259,49 @@ func (s *achievementService) SubmitAchievement(c *fiber.Ctx) error {
             "submitted_at": time.Now(),
         },
     })
+}
+
+func (s *achievementService) VerifyAchievement(c *fiber.Ctx) error {
+	achievementID := c.Params("id")
+
+	verifierUserID, err := helpers.GetUserIDFromContext(c)
+	if err != nil {
+		return c.Status(401).JSON(fiber.Map{"message": err.Error()})
+	}
+
+	if err := helpers.ValidateAdvisorAccess(c.Context(), s.repo, achievementID, verifierUserID); err != nil {
+		return c.Status(403).JSON(fiber.Map{"message": err.Error()})
+	}
+
+	err = s.repo.VerifyAchievement(c.Context(), achievementID, verifierUserID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"message": "Gagal memverifikasi prestasi"})
+	}
+
+	return c.JSON(fiber.Map{"success": true, "message": "Prestasi berhasil diverifikasi"})
+}
+
+func (s *achievementService) RejectAchievement(c *fiber.Ctx) error {
+	achievementID := c.Params("id")
+
+	var req models.RejectAchievementRequest
+	if err := c.BodyParser(&req); err != nil || req.RejectionNote == "" {
+		return c.Status(400).JSON(fiber.Map{"message": "Alasan penolakan (rejection_note) wajib diisi"})
+	}
+
+	verifierUserID, err := helpers.GetUserIDFromContext(c)
+	if err != nil {
+		return c.Status(401).JSON(fiber.Map{"message": err.Error()})
+	}
+
+	if err := helpers.ValidateAdvisorAccess(c.Context(), s.repo, achievementID, verifierUserID); err != nil {
+		return c.Status(403).JSON(fiber.Map{"message": err.Error()})
+	}
+
+	err = s.repo.RejectAchievement(c.Context(), achievementID, verifierUserID, req.RejectionNote)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"message": "Gagal menolak prestasi"})
+	}
+
+	return c.JSON(fiber.Map{"success": true, "message": "Prestasi berhasil ditolak"})
 }

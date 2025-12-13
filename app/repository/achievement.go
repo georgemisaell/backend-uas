@@ -17,9 +17,13 @@ type AchievementRepository interface {
 	CreateAchievementMongo(ctx context.Context, data models.AchievementMongo) (string, error)
 	CreateAchievementReference(ctx context.Context, ref models.AchievementReference) error
 	GetAchievementByID(ctx context.Context, id string) (models.AchievementReference, error)
-  UpdateAchievement(ctx context.Context, pgID string, mongoID string, data models.AchievementMongo) error
-  SoftDeleteAchievement(ctx context.Context, pgID string, mongoID string) error
+    UpdateAchievement(ctx context.Context, pgID string, mongoID string, data models.AchievementMongo) error
+    SoftDeleteAchievement(ctx context.Context, pgID string, mongoID string) error
 	SubmitAchievement(ctx context.Context, id string) error
+    GetLecturerIDByUserID(ctx context.Context, userID string) (string, error)
+    VerifyAchievement(ctx context.Context, id string, verifierUserID string) error
+    RejectAchievement(ctx context.Context, id string, verifierUserID string, note string) error
+    CheckStudentAdvisorRelationship(ctx context.Context, lecturerID string, studentID string) (bool, error)
 }
 
 type achievementRepository struct {
@@ -157,4 +161,68 @@ func (r *achievementRepository) SubmitAchievement(ctx context.Context, id string
     }
 
     return nil
+}
+
+func (r *achievementRepository) GetLecturerIDByUserID(ctx context.Context, userID string) (string, error) {
+    query := `SELECT id FROM lecturers WHERE user_id = $1`
+    var lecturerID string
+    err := r.pg.QueryRowContext(ctx, query, userID).Scan(&lecturerID)
+    if err != nil {
+        return "", err
+    }
+    return lecturerID, nil
+}
+
+func (r *achievementRepository) VerifyAchievement(ctx context.Context, id string, verifierUserID string) error {
+    query := `
+        UPDATE achievement_references 
+        SET status = 'verified', 
+            verified_by = $2, 
+            verified_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $1
+    `
+    result, err := r.pg.ExecContext(ctx, query, id, verifierUserID)
+    if err != nil {
+        return fmt.Errorf("gagal verifikasi: %w", err)
+    }
+    
+    rows, _ := result.RowsAffected()
+    if rows == 0 {
+        return fmt.Errorf("data tidak ditemukan")
+    }
+    return nil
+}
+
+func (r *achievementRepository) RejectAchievement(ctx context.Context, id string, verifierUserID string, note string) error {
+    query := `
+        UPDATE achievement_references 
+        SET status = 'rejected', 
+            verified_by = $2, 
+            rejection_note = $3,
+            updated_at = NOW()
+        WHERE id = $1
+    `
+    result, err := r.pg.ExecContext(ctx, query, id, verifierUserID, note)
+    if err != nil {
+        return fmt.Errorf("gagal reject: %w", err)
+    }
+
+    rows, _ := result.RowsAffected()
+    if rows == 0 {
+        return fmt.Errorf("data tidak ditemukan")
+    }
+    return nil
+}
+
+func (r *achievementRepository) CheckStudentAdvisorRelationship(ctx context.Context, lecturerID string, studentID string) (bool, error) {
+    query := `SELECT count(1) FROM students WHERE id = $1 AND advisor_id = $2`
+    
+    var count int
+    err := r.pg.QueryRowContext(ctx, query, studentID, lecturerID).Scan(&count)
+    if err != nil {
+        return false, err
+    }
+    
+    return count > 0, nil
 }

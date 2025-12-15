@@ -24,6 +24,10 @@ type AchievementRepository interface {
     VerifyAchievement(ctx context.Context, id string, verifierUserID string) error
     RejectAchievement(ctx context.Context, id string, verifierUserID string, note string) error
     CheckStudentAdvisorRelationship(ctx context.Context, lecturerID string, studentID string) (bool, error)
+    GetAllReferences(ctx context.Context) ([]models.AchievementReference, map[string]string, map[string]string, error)
+    GetMongoDetailsByIDs(ctx context.Context, mongoIDs []string) (map[string]models.AchievementMongo, error)
+    GetAchievementReferenceWithDetail(ctx context.Context, id string) (models.AchievementResponse, error)
+    GetMongoDetailByID(ctx context.Context, mongoID string) (models.AchievementMongo, error)
 }
 
 type achievementRepository struct {
@@ -225,4 +229,120 @@ func (r *achievementRepository) CheckStudentAdvisorRelationship(ctx context.Cont
     }
     
     return count > 0, nil
+}
+
+func (r *achievementRepository) GetAllReferences(ctx context.Context) ([]models.AchievementReference, map[string]string, map[string]string, error) {
+    query := `
+        SELECT 
+            ar.id, ar.student_id, ar.mongo_achievement_id, ar.status, ar.created_at,
+            u.full_name, s.student_id as nim
+        FROM achievement_references ar
+        JOIN students s ON ar.student_id = s.id
+        JOIN users u ON s.user_id = u.id
+        ORDER BY ar.created_at DESC
+    `
+    
+    rows, err := r.pg.QueryContext(ctx, query)
+    if err != nil {
+        return nil, nil, nil, err
+    }
+    defer rows.Close()
+
+    var refs []models.AchievementReference
+    studentNames := make(map[string]string)
+    studentNIMs := make(map[string]string)
+
+    for rows.Next() {
+        var ref models.AchievementReference
+        var fullName, nim string
+        
+        err := rows.Scan(
+            &ref.ID, &ref.StudentID, &ref.MongoAchievementID, &ref.Status, &ref.CreatedAt,
+            &fullName, &nim,
+        )
+        if err != nil {
+            return nil, nil, nil, err
+        }
+
+        refs = append(refs, ref)
+        studentNames[ref.ID] = fullName
+        studentNIMs[ref.ID] = nim
+    }
+
+    return refs, studentNames, studentNIMs, nil
+}
+
+func (r *achievementRepository) GetMongoDetailsByIDs(ctx context.Context, mongoIDs []string) (map[string]models.AchievementMongo, error) {
+    var objectIDs []primitive.ObjectID
+    for _, id := range mongoIDs {
+        oid, err := primitive.ObjectIDFromHex(id)
+        if err == nil {
+            objectIDs = append(objectIDs, oid)
+        }
+    }
+
+    filter := bson.M{"_id": bson.M{"$in": objectIDs}}
+    cursor, err := r.mongo.Collection("achievements").Find(ctx, filter)
+    if err != nil {
+        return nil, err
+    }
+    defer cursor.Close(ctx)
+
+    results := make(map[string]models.AchievementMongo)
+    for cursor.Next(ctx) {
+        var doc models.AchievementMongo
+        if err := cursor.Decode(&doc); err == nil {
+            results[doc.ID.Hex()] = doc
+        }
+    }
+    return results, nil
+}
+
+func (r *achievementRepository) GetAchievementReferenceWithDetail(ctx context.Context, id string) (models.AchievementResponse, error) {
+    query := `
+        SELECT 
+            ar.id, ar.student_id, ar.mongo_achievement_id, ar.status, 
+            ar.created_at, ar.submitted_at, ar.verified_at, ar.rejection_note,
+            u.full_name, s.student_id as nim
+        FROM achievement_references ar
+        JOIN students s ON ar.student_id = s.id
+        JOIN users u ON s.user_id = u.id
+        WHERE ar.id = $1 AND ar.deleted_at IS NULL
+    `
+    
+    var res models.AchievementResponse
+    var submittedAt, verifiedAt *time.Time
+    var rejectionNote *string
+
+    err := r.pg.QueryRowContext(ctx, query, id).Scan(
+        &res.ID, &res.StudentID, &res.MongoID, &res.Status,
+        &res.CreatedAt, &submittedAt, &verifiedAt, &rejectionNote,
+        &res.StudentName, &res.StudentNIM,
+    )
+    if err != nil {
+        return models.AchievementResponse{}, err
+    }
+
+    res.SubmittedAt = submittedAt
+    res.VerifiedAt = verifiedAt
+    if rejectionNote != nil {
+        res.RejectionNote = *rejectionNote
+    }
+
+    return res, nil
+}
+
+func (r *achievementRepository) GetMongoDetailByID(ctx context.Context, mongoID string) (models.AchievementMongo, error) {
+    oid, err := primitive.ObjectIDFromHex(mongoID)
+    if err != nil {
+        return models.AchievementMongo{}, err
+    }
+
+    var result models.AchievementMongo
+    err = r.mongo.Collection("achievements").FindOne(ctx, bson.M{"_id": oid}).Decode(&result)
+    if err != nil {
+        return models.AchievementMongo{}, err
+    }
+
+    return result, nil
 }

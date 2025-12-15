@@ -56,4 +56,8 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	// Achievements (Dosen Wali)
 	protected.Post("/achievements/:id/verify", middleware.RequirePermission("achievements:verify"), achService.VerifyAchievement)
 	protected.Post("/achievements/:id/reject", middleware.RequirePermission("achievements:reject"), achService.RejectAchievement)
+
+	// Achievements (Admin)
+	protected.Get("/achievements", middleware.RequirePermission("achievements:read"), achService.GetAllAchievements)
+	protected.Get("/achievements/:id", middleware.RequirePermission("achievements:read"), achService.GetAchievementDetail)
 }

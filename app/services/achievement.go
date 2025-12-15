@@ -18,6 +18,8 @@ type AchievementService interface {
 	SubmitAchievement(c *fiber.Ctx) error
 	VerifyAchievement(c *fiber.Ctx) error
 	RejectAchievement(c *fiber.Ctx) error
+	GetAllAchievements(c *fiber.Ctx) error
+	GetAchievementDetail(c *fiber.Ctx) error
 }
 
 type achievementService struct {
@@ -304,4 +306,99 @@ func (s *achievementService) RejectAchievement(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"success": true, "message": "Prestasi berhasil ditolak"})
+}
+
+func (s *achievementService) GetAllAchievements(c *fiber.Ctx) error {
+  
+    pgRefs, names, nims, err := s.repo.GetAllReferences(c.Context())
+    if err != nil {
+        return c.Status(500).JSON(fiber.Map{"message": "Gagal mengambil data referensi"})
+    }
+
+    if len(pgRefs) == 0 {
+        return c.JSON(fiber.Map{"success": true, "data": []string{}})
+    }
+
+    var mongoIDs []string
+    for _, ref := range pgRefs {
+        mongoIDs = append(mongoIDs, ref.MongoAchievementID)
+    }
+
+    mongoDocs, err := s.repo.GetMongoDetailsByIDs(c.Context(), mongoIDs)
+    if err != nil {
+        return c.Status(500).JSON(fiber.Map{"message": "Gagal mengambil detail prestasi"})
+    }
+
+    var responses []models.AchievementResponse
+    for _, ref := range pgRefs {
+
+        detail, ok := mongoDocs[ref.MongoAchievementID]
+        
+        res := models.AchievementResponse{
+            ID:          ref.ID,
+            MongoID:     ref.MongoAchievementID,
+            StudentID:   ref.StudentID,
+            StudentName: names[ref.ID],
+            StudentNIM:  nims[ref.ID],
+            Status:      ref.Status,
+            CreatedAt:   ref.CreatedAt,
+        }
+
+        if ok {
+            res.Title = detail.Title
+            res.AchievementType = detail.AchievementType
+        } else {
+            res.Title = "[Detail Tidak Ditemukan]"
+        }
+
+        responses = append(responses, res)
+    }
+
+    return c.JSON(fiber.Map{
+        "success": true,
+        "data":    responses,
+    })
+}
+
+func (s *achievementService) GetAchievementDetail(c *fiber.Ctx) error {
+    id := c.Params("id")
+
+    refData, err := s.repo.GetAchievementReferenceWithDetail(c.Context(), id)
+    if err != nil {
+        return c.Status(404).JSON(fiber.Map{"message": "Data prestasi tidak ditemukan"})
+    }
+
+    userIDLocal := c.Locals("user_id")
+    roleName := c.Locals("role_name").(string) // Pastikan middleware set role_name
+
+    if roleName == "Mahasiswa" && userIDLocal != nil {
+        currentUserID := ""
+        switch v := userIDLocal.(type) {
+        case string: currentUserID = v
+        case uuid.UUID: currentUserID = v.String()
+        }
+
+        myStudentID, _ := s.repo.GetStudentIDByUserID(c.Context(), currentUserID)
+        if myStudentID != refData.StudentID {
+            return c.Status(403).JSON(fiber.Map{"message": "Anda tidak memiliki akses ke detail prestasi ini"})
+        }
+    }
+
+    mongoData, err := s.repo.GetMongoDetailByID(c.Context(), refData.MongoID)
+    if err != nil {
+        refData.Title = "[Detail Hilang]"
+    } else {
+        // Merge Data
+        refData.AchievementType = mongoData.AchievementType
+        refData.Title = mongoData.Title
+        refData.Description = mongoData.Description
+        refData.Details = mongoData.Details
+        refData.Tags = mongoData.Tags
+        refData.Points = mongoData.Points
+    }
+
+    return c.JSON(fiber.Map{
+        "success": true,
+        "data":    refData,
+    })
 }

@@ -61,7 +61,14 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	// Achievements (Admin)
 	protected.Get("/achievements/:id", middleware.RequirePermission("achievements:read"), achService.GetAchievementDetail)
 	protected.Get("/achievements/:id/history", middleware.RequirePermission("achievements:read"), achService.GetAchievementHistory)
-
+	
 	// Achievements (All Role)
 	protected.Get("/achievements", middleware.RequirePermission("achievements:read"), achService.GetAllAchievements)
+
+	// Reports & Analitycs 
+	reportRepo := repository.NewReportRepository(postgreSQL)
+	reportService := services.NewReportService(reportRepo, achRepo)
+	reports := protected.Group("/reports")
+	reports.Get("/statistics", middleware.RequirePermission("reports:read"), reportService.GetSystemStatistics)
+	reports.Get("/student/:id", middleware.RequirePermission("reports:read"), reportService.GetStudentReport)
 }

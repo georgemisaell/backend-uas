@@ -82,6 +82,12 @@ VALUES (
 
 INSERT INTO public.role_permissions (role_id, permission_id)
 VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Admin'),
+    (SELECT id FROM public.permissions WHERE name = 'reports:read')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
     (SELECT id FROM public.roles WHERE name = 'Mahasiswa'),
     (SELECT id FROM public.permissions WHERE name = 'achievements:read')
 );
@@ -106,6 +112,12 @@ VALUES (
 
 INSERT INTO public.role_permissions (role_id, permission_id)
 VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Mahasiswa'),
+    (SELECT id FROM public.permissions WHERE name = 'reports:read')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
     (SELECT id FROM public.roles WHERE name = 'Dosen Wali'),
     (SELECT id FROM public.permissions WHERE name = 'achievements:read')
 );
@@ -120,4 +132,10 @@ INSERT INTO public.role_permissions (role_id, permission_id)
 VALUES (
     (SELECT id FROM public.roles WHERE name = 'Dosen Wali'),
     (SELECT id FROM public.permissions WHERE name = 'achievements:reject')
+);
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES (
+    (SELECT id FROM public.roles WHERE name = 'Dosen Wali'),
+    (SELECT id FROM public.permissions WHERE name = 'reports:read')
 );

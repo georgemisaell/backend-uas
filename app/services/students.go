@@ -24,6 +24,16 @@ func NewStudentService(repo repository.StudentRepository) StudentService {
 	return &studentService{repo: repo}
 }
 
+// GetStudents godoc
+// @Summary      Ambil Semua Data Mahasiswa
+// @Description  Mengambil daftar lengkap mahasiswa (terfilter role 'Mahasiswa'). Admin Only.
+// @Tags         Students
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Success      200  {object}  map[string][]models.GetStudent
+// @Failure      500  {object}  map[string]string
+// @Router       /students [get]
 func (s *studentService) GetStudents(c *fiber.Ctx) error {
 	const targetRole = "Mahasiswa"
 	
@@ -52,6 +62,19 @@ func (s *studentService) GetStudents(c *fiber.Ctx) error {
 	})
 }
 
+// GetStudentByID godoc
+// @Summary      Ambil Detail Mahasiswa
+// @Description  Mendapatkan data detail satu mahasiswa berdasarkan ID (UUID).
+// @Tags         Students
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        id   path      string  true  "Student ID (UUID)"
+// @Success      200  {object}  map[string]models.GetStudent
+// @Failure      400  {object}  map[string]string "Format ID salah"
+// @Failure      404  {object}  map[string]string "Tidak ditemukan"
+// @Failure      500  {object}  map[string]string
+// @Router       /students/{id} [get]
 func (s *studentService) GetStudentByID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 
@@ -85,8 +108,22 @@ func (s *studentService) GetStudentByID(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateStudentAdvisor godoc
+// @Summary      Update Dosen Wali
+// @Description  Mengganti dosen wali (Advisor) untuk mahasiswa tertentu.
+// @Tags         Students
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        id       path      string                       true  "Student ID (UUID)"
+// @Param        request  body      models.UpdateAdvisorRequest  true  "Advisor ID Baru"
+// @Success      200      {object}  map[string]string
+// @Failure      400      {object}  map[string]string "ID salah / Dosen tidak ada"
+// @Failure      404      {object}  map[string]string "Mahasiswa tidak ditemukan"
+// @Failure      500      {object}  map[string]string
+// @Router       /students/{id}/advisor [put]
 func (s *studentService) UpdateStudentAdvisor(c *fiber.Ctx) error {
-	// 1. Ambil Student ID dari URL
+	
 	studentID := c.Params("id")
 	if _, err := uuid.Parse(studentID); err != nil {
 		return c.Status(400).JSON(fiber.Map{
@@ -95,7 +132,6 @@ func (s *studentService) UpdateStudentAdvisor(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. Parse Body untuk ambil Advisor ID baru
 	var req models.UpdateAdvisorRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{
@@ -104,7 +140,6 @@ func (s *studentService) UpdateStudentAdvisor(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Validasi Advisor ID
 	if _, err := uuid.Parse(req.AdvisorID); err != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"message": "Format Advisor ID tidak valid",
@@ -112,10 +147,8 @@ func (s *studentService) UpdateStudentAdvisor(c *fiber.Ctx) error {
 		})
 	}
 
-	// 4. Panggil Repository
 	err := s.repo.UpdateStudentAdvisor(c.Context(), studentID, req.AdvisorID)
 	if err != nil {
-		// Handle jika student tidak ditemukan
 		if err.Error() == "student_not_found" {
 			return c.Status(404).JSON(fiber.Map{
 				"message": "Data mahasiswa tidak ditemukan",
@@ -123,8 +156,6 @@ func (s *studentService) UpdateStudentAdvisor(c *fiber.Ctx) error {
 			})
 		}
 		
-		// Handle jika Advisor ID tidak ada di tabel lectures (Foreign Key Violation)
-		// Error message dari database biasanya mengandung "foreign key constraint"
 		if strings.Contains(err.Error(), "foreign key") {
 			return c.Status(400).JSON(fiber.Map{
 				"message": "ID Dosen Wali tidak ditemukan di database",
@@ -139,7 +170,6 @@ func (s *studentService) UpdateStudentAdvisor(c *fiber.Ctx) error {
 		})
 	}
 
-	// 5. Sukses
 	return c.JSON(fiber.Map{
 		"message": "Dosen Wali berhasil diperbarui",
 		"success": true,

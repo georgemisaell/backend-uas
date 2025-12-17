@@ -25,6 +25,17 @@ func NewAuthService(userRepo repository.UserRepository) AuthService {
 	return &authService{userRepo: userRepo}
 }
 
+// Login godoc
+// @Summary      Masuk ke sistem
+// @Description  Autentikasi user untuk mendapatkan Access Token dan Refresh Token
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body models.LoginRequest true "Login Payload"
+// @Success      200  {object} models.LoginResponse
+// @Failure      400  {object} map[string]string
+// @Failure      401  {object} map[string]string
+// @Router       /auth/login [post]
 func (s *authService) Login(c *fiber.Ctx) error {
 	var req models.LoginRequest
 
@@ -76,6 +87,17 @@ func (s *authService) Login(c *fiber.Ctx) error {
 	})
 }
 
+// Refresh godoc
+// @Summary      Refresh Access Token
+// @Description  Mendapatkan Access Token baru menggunakan Refresh Token yang valid
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body models.RefreshTokenRequest true "Refresh Token Payload"
+// @Success      200  {object} map[string]string "Berisi token baru"
+// @Failure      400  {object} map[string]string
+// @Failure      401  {object} map[string]string
+// @Router       /auth/refresh [post]
 func (s *authService) Refresh(c *fiber.Ctx) error {
 	var req struct {
 		RefreshToken string `json:"refreshToken"`
@@ -124,6 +146,16 @@ func (s *authService) Refresh(c *fiber.Ctx) error {
 	})
 }
 
+// GetProfile godoc
+// @Summary      Lihat Profil Saya
+// @Description  Melihat informasi user yang sedang login (User ID, Username, Role)
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Success      200  {object} map[string]interface{}
+// @Failure      401  {object} map[string]string
+// @Router       /auth/profile [get]
 func (s *authService) GetProfile(c *fiber.Ctx) error {
 	userIDLocal := c.Locals("user_id")
 	if userIDLocal == nil {

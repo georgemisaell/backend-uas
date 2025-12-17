@@ -25,6 +25,17 @@ func NewReportService(reportRepo repository.ReportRepository, achievementRepo re
 	}
 }
 
+// GetSystemStatistics godoc
+// @Summary      Dashboard Statistik
+// @Description  Menampilkan ringkasan jumlah prestasi berdasarkan status (Draft, Verified, Rejected). Admin & Dosen Wali Only.
+// @Tags         Reports
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Success      200  {object}  models.DashboardStatistics
+// @Failure      403  {object}  map[string]string "Akses Ditolak"
+// @Failure      500  {object}  map[string]string
+// @Router       /reports/statistics [get]
 func (s *reportService) GetSystemStatistics(c *fiber.Ctx) error {
 	roleName := c.Locals("role_name").(string)
 
@@ -40,6 +51,19 @@ func (s *reportService) GetSystemStatistics(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"success": true, "data": stats})
 }
 
+// GetStudentReport godoc
+// @Summary      Rapor Prestasi Mahasiswa (Transkrip)
+// @Description  Menampilkan profil, total poin (SKP), dan daftar prestasi verified mahasiswa. Mahasiswa hanya bisa lihat punya sendiri. Dosen Wali hanya anak bimbingan.
+// @Tags         Reports
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        id   path      string  true  "Student ID (UUID)"
+// @Success      200  {object}  models.StudentReportResponse
+// @Failure      403  {object}  map[string]string "Bukan hak akses anda"
+// @Failure      404  {object}  map[string]string "Mahasiswa tidak ditemukan"
+// @Failure      500  {object}  map[string]string
+// @Router       /reports/student/{id} [get]
 func (s *reportService) GetStudentReport(c *fiber.Ctx) error {
 	targetStudentID := c.Params("id")
 	requesterID, _ := helpers.GetUserIDFromContext(c)

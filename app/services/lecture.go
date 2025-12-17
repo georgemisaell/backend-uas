@@ -22,6 +22,16 @@ func NewLecturerService(repo repository.LecturerRepository) LecturerService {
 	return &lecturerService{repo: repo}
 }
 
+// GetLecturers godoc
+// @Summary      Ambil Semua Dosen Wali
+// @Description  Mengambil daftar lengkap dosen wali yang aktif.
+// @Tags         Lecturers
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Success      200  {object}  map[string][]models.GetLecture
+// @Failure      500  {object}  map[string]string
+// @Router       /lecturers [get]
 func (s *lecturerService) GetLecturers(c *fiber.Ctx) error {
 	const targetRole = "Dosen Wali"
 
@@ -49,6 +59,19 @@ func (s *lecturerService) GetLecturers(c *fiber.Ctx) error {
 	})
 }
 
+// GetLecturerByID godoc
+// @Summary      Ambil Detail Dosen
+// @Description  Mendapatkan data detail satu dosen berdasarkan ID (UUID).
+// @Tags         Lecturers
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        id   path      string  true  "Lecturer ID (UUID)"
+// @Success      200  {object}  map[string]models.GetLecture
+// @Failure      400  {object}  map[string]string "Format ID salah"
+// @Failure      404  {object}  map[string]string "Tidak ditemukan"
+// @Failure      500  {object}  map[string]string
+// @Router       /lecturers/{id} [get]
 func (s *lecturerService) GetLecturerByID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 
@@ -81,11 +104,21 @@ func (s *lecturerService) GetLecturerByID(c *fiber.Ctx) error {
 	})
 }
 
+// GetLecturerAdvisees godoc
+// @Summary      Ambil Mahasiswa Bimbingan
+// @Description  Melihat daftar mahasiswa yang dibimbing oleh dosen tertentu.
+// @Tags         Lecturers
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        id   path      string  true  "Lecturer ID (UUID)"
+// @Success      200  {object}  map[string][]models.GetStudent
+// @Failure      400  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /lecturers/{id}/advisees [get]
 func (s *lecturerService) GetLecturerAdvisees(c *fiber.Ctx) error {
-	// 1. Ambil ID Dosen dari parameter URL
 	lecturerID := c.Params("id")
 
-	// 2. Validasi UUID
 	if _, err := uuid.Parse(lecturerID); err != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"message": "Format ID Dosen tidak valid",
@@ -93,7 +126,6 @@ func (s *lecturerService) GetLecturerAdvisees(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Panggil Repository (Opsional: Cek dulu apakah Dosennya ada, tapi langsung query juga oke)
 	students, err := s.repo.GetAdviseesByLecturerID(c.Context(), lecturerID)
 	
 	if err != nil {
@@ -104,7 +136,6 @@ func (s *lecturerService) GetLecturerAdvisees(c *fiber.Ctx) error {
 		})
 	}
 
-	// 4. Handle jika data kosong (belum punya anak bimbingan)
 	if len(students) == 0 {
 		return c.JSON(fiber.Map{
 			"message": "Dosen ini belum memiliki mahasiswa bimbingan",
@@ -113,7 +144,6 @@ func (s *lecturerService) GetLecturerAdvisees(c *fiber.Ctx) error {
 		})
 	}
 
-	// 5. Return Data
 	return c.JSON(fiber.Map{
 		"message": "Data mahasiswa bimbingan berhasil diambil",
 		"success": true,

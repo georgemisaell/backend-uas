@@ -7,6 +7,7 @@ import (
 	"uas/middleware"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/swagger"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -78,4 +79,6 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	reports := protected.Group("/reports")
 	reports.Get("/statistics", middleware.RequirePermission("reports:read"), reportService.GetSystemStatistics)
 	reports.Get("/student/:id", middleware.RequirePermission("reports:read"), reportService.GetStudentReport)
+
+	app.Get("/swagger/*", swagger.HandlerDefault)
 }

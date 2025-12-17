@@ -21,13 +21,13 @@ type UserService interface {
 }
 
 type userService struct {
-	db           *sql.DB                       // Butuh DB asli buat start Transaction (Begin)
-	userRepo     repository.UserRepository     // Inject User Repo
-	studentRepo  repository.StudentRepository  // Inject Student Repo
-	lecturerRepo repository.LecturerRepository // Inject Lecturer Repo
+	db           *sql.DB                      
+	userRepo     repository.UserRepository    
+	studentRepo  repository.StudentRepository 
+	lecturerRepo repository.LecturerRepository
 }
 
-// Constructor kita update biar menerima SEMUA dependency
+
 func NewUserService(
 	db *sql.DB,
 	userRepo repository.UserRepository,
@@ -42,8 +42,17 @@ func NewUserService(
 	}
 }
 
+// GetAllUsers godoc
+// @Summary      Ambil Semua User
+// @Description  Mengambil daftar semua user yang terdaftar (Admin Only)
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Success      200  {array}   models.User
+// @Failure      500  {object}  map[string]string
+// @Router       /users [get]
 func (s *userService) GetAllUsers(c *fiber.Ctx) error {
-	// Panggil method repo (s.userRepo), bukan package repository langsung
 	users, err := s.userRepo.GetAllUsers(c.Context())
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
@@ -67,6 +76,19 @@ func (s *userService) GetAllUsers(c *fiber.Ctx) error {
 	})
 }
 
+// GetUserByID godoc
+// @Summary      Ambil User berdasarkan ID
+// @Description  Mengambil detail data satu user berdasarkan UUID
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        id   path      string  true  "User ID (UUID)"
+// @Success      200  {object}  models.User
+// @Failure      400  {object}  map[string]string "Format ID salah"
+// @Failure      404  {object}  map[string]string "User tidak ditemukan"
+// @Failure      500  {object}  map[string]string
+// @Router       /users/{id} [get]
 func (s *userService) GetUserByID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	userID, err := uuid.Parse(idParam)
@@ -97,6 +119,18 @@ func (s *userService) GetUserByID(c *fiber.Ctx) error {
 	})
 }
 
+// CreateUser godoc
+// @Summary      Tambah User Baru (Admin)
+// @Description  Membuat user baru beserta data Mahasiswa atau Dosen (Transactional)
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        request body models.CreateUserRequest true "Data User Lengkap"
+// @Success      201  {object} models.User
+// @Failure      400  {object} map[string]string
+// @Failure      500  {object} map[string]string
+// @Router       /users [post]
 func (s *userService) CreateUser(c *fiber.Ctx) error {
 	var req models.CreateUserRequest
 
@@ -117,7 +151,6 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 	}
 
 	// 1. MULAI TRANSAKSI
-	// Kita pakai s.db disini karena transaksi diatur oleh Service Layer
 	tx, err := s.db.Begin()
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
@@ -125,7 +158,6 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 			"success": false,
 		})
 	}
-	// Pastikan rollback kalau ada error di tengah jalan
 	defer tx.Rollback()
 
 	userID := uuid.New()
@@ -150,7 +182,7 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 		UpdatedAt:    time.Now(),
 	}
 
-	// 2. INSERT USER (Pakai s.userRepo dengan Transaksi 'tx')
+	// 2. INSERT USER
 	err = s.userRepo.CreateUser(c.Context(), tx, newUser)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
@@ -160,7 +192,7 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. INSERT STUDENT (Jika Role Mahasiswa)
+	// 3. INSERT STUDENT
 	if req.RoleName == "Mahasiswa" && req.Student != nil {
 		newStudent := models.Student{
 			ID:           uuid.New(),
@@ -172,8 +204,6 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 			CreatedAt:    time.Now(),
 		}
 
-		// Asumsi StudentRepo sudah punya method CreateStudentWithTx
-		// Kalau belum, Bor harus refactor StudentRepo mirip UserRepository
 		if err := s.studentRepo.CreateStudent(c.Context(), tx, newStudent); err != nil {
 			return c.Status(500).JSON(fiber.Map{
 				"message": "Gagal menyimpan data mahasiswa",
@@ -183,7 +213,6 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 		}
 	}
 
-	// 4. INSERT LECTURER (Jika Role Dosen Wali)
 	if req.RoleName == "Dosen Wali" && req.Lecture != nil {
 		newLecture := models.Lecture{
 			ID:         uuid.New(),
@@ -192,8 +221,7 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 			Department: req.Lecture.Department,
 			CreatedAt:  time.Now(),
 		}
-
-		// Sama, asumsi LecturerRepo support Tx
+				
 		if err := s.lecturerRepo.CreateLecture(c.Context(), tx, newLecture); err != nil {
 			return c.Status(500).JSON(fiber.Map{
 				"message": "Gagal menyimpan data dosen",
@@ -257,6 +285,19 @@ func (s *userService) UpdateUser(c *fiber.Ctx) error {
 	})
 }
 
+// DeleteUser godoc
+// @Summary      Hapus User
+// @Description  Menghapus data user secara permanen (atau Soft Delete tergantung implementasi repo)
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        id   path      string  true  "User ID (UUID)"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /users/{id} [delete]
 func (s *userService) DeleteUser(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	userID, err := uuid.Parse(idParam)
@@ -287,6 +328,20 @@ func (s *userService) DeleteUser(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateUser godoc
+// @Summary      Update Data User
+// @Description  Memperbarui data profile user (Username, Email, Fullname, dll)
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Security     Bearer
+// @Param        id       path      string             true  "User ID (UUID)"
+// @Param        request  body      models.UpdateUser  true  "Data yang diupdate"
+// @Success      200      {object}  models.User
+// @Failure      400      {object}  map[string]string
+// @Failure      404      {object}  map[string]string
+// @Failure      500      {object}  map[string]string
+// @Router       /users/{id} [put]
 func (s *userService) UpdateUserRole(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	userID, err := uuid.Parse(idParam)

@@ -7,27 +7,11 @@ import (
 	"uas/app/models"
 )
 
-func CreateLecture(tx *sql.Tx, lecture models.Lecture) error {
-	query := `
-		INSERT INTO lecturers (
-			id, user_id, lecturer_id, department, created_at
-		) VALUES ($1, $2, $3, $4, $5)
-	`
-	_, err := tx.Exec(query,
-		lecture.ID,
-		lecture.UserID,
-		lecture.LectureID,
-		lecture.Department,
-		lecture.CreatedAt,
-	)
-
-	return err
-}
-
 type LecturerRepository interface {
+	CreateLecture(ctx context.Context, tx *sql.Tx, lecture models.Lecture) error
 	GetAllLecturersByRole(ctx context.Context, roleName string) ([]models.GetLecture, error)
 	GetLecturerByID(ctx context.Context, id string) (models.GetLecture, error)
-	GetAdviseesByLecturerID(ctx context.Context, lecturerID string) ([]models.GetLecture, error)
+	GetAdviseesByLecturerID(ctx context.Context, lecturerID string) ([]models.GetStudent, error)
 }
 
 type lecturerRepository struct {
@@ -36,6 +20,35 @@ type lecturerRepository struct {
 
 func NewLecturerRepository(db *sql.DB) LecturerRepository {
 	return &lecturerRepository{db: db}
+}
+
+func (r *lecturerRepository) CreateLecture(ctx context.Context, tx *sql.Tx, lecture models.Lecture) error {
+	query := `
+		INSERT INTO lecturers (
+			id, user_id, lecturer_id, department, created_at
+		) VALUES ($1, $2, $3, $4, $5)
+	`
+
+	var err error
+	if tx != nil {
+		_, err = tx.ExecContext(ctx, query,
+			lecture.ID,
+			lecture.UserID,
+			lecture.LectureID,
+			lecture.Department,
+			lecture.CreatedAt,
+		)
+	} else {
+		_, err = r.db.ExecContext(ctx, query,
+			lecture.ID,
+			lecture.UserID,
+			lecture.LectureID,
+			lecture.Department,
+			lecture.CreatedAt,
+		)
+	}
+
+	return err
 }
 
 func (r *lecturerRepository) GetAllLecturersByRole(ctx context.Context, roleName string) ([]models.GetLecture, error) {
@@ -115,8 +128,7 @@ func (r *lecturerRepository) GetLecturerByID(ctx context.Context, id string) (mo
 	return l, nil
 }
 
-func (r *lecturerRepository) GetAdviseesByLecturerID(ctx context.Context, lecturerID string) ([]models.GetLecture, error) {
-	// Query: Ambil data Student + User, dimana advisor_id = ID Dosen yang dikirim
+func (r *lecturerRepository) GetAdviseesByLecturerID(ctx context.Context, lecturerID string) ([]models.GetStudent, error) {
 	query := `
 		SELECT 
 			s.id, 
@@ -132,7 +144,7 @@ func (r *lecturerRepository) GetAdviseesByLecturerID(ctx context.Context, lectur
 		FROM students s
 		JOIN users u ON s.user_id = u.id
 		JOIN roles r ON u.role_id = r.id
-		WHERE s.advisor_id = $1  -- Filter berdasarkan advisor_id
+		WHERE s.advisor_id = $1
 		ORDER BY u.full_name ASC
 	`
 
@@ -142,16 +154,16 @@ func (r *lecturerRepository) GetAdviseesByLecturerID(ctx context.Context, lectur
 	}
 	defer rows.Close()
 
-	var students []models.GetLecture
+	var students []models.GetStudent
 
 	for rows.Next() {
-		var s models.GetLecture
+		var s models.GetStudent
 		err := rows.Scan(
 			&s.ID,
 			&s.UserID,
 			&s.NIM,
 			&s.ProgramStudy,
-			&s.AcademyYear,
+			&s.AcademyYear, 
 			&s.FullName,
 			&s.Username,
 			&s.Email,

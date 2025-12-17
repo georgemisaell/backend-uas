@@ -21,15 +21,30 @@ type UserService interface {
 }
 
 type userService struct {
-	db *sql.DB
+	db           *sql.DB                       // Butuh DB asli buat start Transaction (Begin)
+	userRepo     repository.UserRepository     // Inject User Repo
+	studentRepo  repository.StudentRepository  // Inject Student Repo
+	lecturerRepo repository.LecturerRepository // Inject Lecturer Repo
 }
 
-func NewUserService(db *sql.DB) UserService {
-	return &userService{db: db}
+// Constructor kita update biar menerima SEMUA dependency
+func NewUserService(
+	db *sql.DB,
+	userRepo repository.UserRepository,
+	studentRepo repository.StudentRepository,
+	lecturerRepo repository.LecturerRepository,
+) UserService {
+	return &userService{
+		db:           db,
+		userRepo:     userRepo,
+		studentRepo:  studentRepo,
+		lecturerRepo: lecturerRepo,
+	}
 }
 
 func (s *userService) GetAllUsers(c *fiber.Ctx) error {
-	users, err := repository.GetAllUsers(s.db)
+	// Panggil method repo (s.userRepo), bukan package repository langsung
+	users, err := s.userRepo.GetAllUsers(c.Context())
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"message": "Terjadi kesalahan pada server",
@@ -62,7 +77,7 @@ func (s *userService) GetUserByID(c *fiber.Ctx) error {
 		})
 	}
 
-	user, err := repository.GetUserByID(s.db, userID)
+	user, err := s.userRepo.GetUserByID(c.Context(), userID)
 	if err == sql.ErrNoRows {
 		return c.Status(404).JSON(fiber.Map{
 			"message": "User tidak ditemukan",
@@ -101,7 +116,8 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// Mulai transaksi
+	// 1. MULAI TRANSAKSI
+	// Kita pakai s.db disini karena transaksi diatur oleh Service Layer
 	tx, err := s.db.Begin()
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
@@ -109,10 +125,10 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 			"success": false,
 		})
 	}
+	// Pastikan rollback kalau ada error di tengah jalan
 	defer tx.Rollback()
 
 	userID := uuid.New()
-
 	roleID, err := uuid.Parse(req.RoleID)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{
@@ -134,8 +150,8 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 		UpdatedAt:    time.Now(),
 	}
 
-	// Insert user
-	err = repository.CreateUser(tx, newUser)
+	// 2. INSERT USER (Pakai s.userRepo dengan Transaksi 'tx')
+	err = s.userRepo.CreateUser(c.Context(), tx, newUser)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"message": "Gagal menyimpan data user",
@@ -144,7 +160,7 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// Insert student jika role mahasiswa
+	// 3. INSERT STUDENT (Jika Role Mahasiswa)
 	if req.RoleName == "Mahasiswa" && req.Student != nil {
 		newStudent := models.Student{
 			ID:           uuid.New(),
@@ -156,7 +172,9 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 			CreatedAt:    time.Now(),
 		}
 
-		if err := repository.CreateStudent(tx, newStudent); err != nil {
+		// Asumsi StudentRepo sudah punya method CreateStudentWithTx
+		// Kalau belum, Bor harus refactor StudentRepo mirip UserRepository
+		if err := s.studentRepo.CreateStudent(c.Context(), tx, newStudent); err != nil {
 			return c.Status(500).JSON(fiber.Map{
 				"message": "Gagal menyimpan data mahasiswa",
 				"success": false,
@@ -165,7 +183,7 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 		}
 	}
 
-	// Insert lecturer jika role dosen wali
+	// 4. INSERT LECTURER (Jika Role Dosen Wali)
 	if req.RoleName == "Dosen Wali" && req.Lecture != nil {
 		newLecture := models.Lecture{
 			ID:         uuid.New(),
@@ -175,7 +193,8 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 			CreatedAt:  time.Now(),
 		}
 
-		if err := repository.CreateLecture(tx, newLecture); err != nil {
+		// Sama, asumsi LecturerRepo support Tx
+		if err := s.lecturerRepo.CreateLecture(c.Context(), tx, newLecture); err != nil {
 			return c.Status(500).JSON(fiber.Map{
 				"message": "Gagal menyimpan data dosen",
 				"success": false,
@@ -184,7 +203,7 @@ func (s *userService) CreateUser(c *fiber.Ctx) error {
 		}
 	}
 
-	// Commit transaksi
+	// 5. COMMIT TRANSAKSI
 	if err := tx.Commit(); err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"message": "Gagal commit transaksi",
@@ -217,7 +236,7 @@ func (s *userService) UpdateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	err = repository.UpdateUser(s.db, userID, user)
+	err = s.userRepo.UpdateUser(c.Context(), userID, user)
 	if err == sql.ErrNoRows {
 		return c.Status(404).JSON(fiber.Map{
 			"message": "User tidak ditemukan",
@@ -248,7 +267,7 @@ func (s *userService) DeleteUser(c *fiber.Ctx) error {
 		})
 	}
 
-	err = repository.DeleteUser(s.db, userID)
+	err = s.userRepo.DeleteUser(c.Context(), userID)
 	if err == sql.ErrNoRows {
 		return c.Status(404).JSON(fiber.Map{
 			"message": "User tidak ditemukan",
@@ -294,7 +313,7 @@ func (s *userService) UpdateUserRole(c *fiber.Ctx) error {
 		})
 	}
 
-	err = repository.UpdateUserRole(s.db, userID, roleID)
+	err = s.userRepo.UpdateUserRole(c.Context(), userID, roleID)
 	if err == sql.ErrNoRows {
 		return c.Status(404).JSON(fiber.Map{
 			"message": "User tidak ditemukan",

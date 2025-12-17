@@ -8,27 +8,8 @@ import (
 	"uas/app/models"
 )
 
-func CreateStudent (tx *sql.Tx, student models.Student) error {
-	    query := `
-        INSERT INTO students (
-            id, user_id, student_id, program_study, academy_year, advisor_id, created_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)`
-
-		_, err := tx.Exec(query,
-			student.ID,
-			student.UserID,
-			student.StudentID,
-			student.ProgramStudy,
-			student.AcademicYear,
-			student.AdvisorID,
-			student.CreatedAt,
-    )
-
-		return err
-}
-
 type StudentRepository interface {
+	CreateStudent(ctx context.Context, tx *sql.Tx, student models.Student) error
 	GetAllStudentsByRole(ctx context.Context, roleName string) ([]models.GetStudent, error)
 	GetStudentByID(ctx context.Context, id string) (models.GetStudent, error)
 	UpdateStudentAdvisor(ctx context.Context, studentID string, advisorID string) error
@@ -42,24 +23,58 @@ func NewStudentRepository(db *sql.DB) StudentRepository {
 	return &studentRepository{db: db}
 }
 
+func (r *studentRepository) CreateStudent(ctx context.Context, tx *sql.Tx, student models.Student) error {
+	query := `
+		INSERT INTO students (
+			id, user_id, student_id, program_study, academy_year, advisor_id, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+
+	var err error
+	if tx != nil {
+		_, err = tx.ExecContext(ctx, query,
+			student.ID,
+			student.UserID,
+			student.StudentID,
+			student.ProgramStudy,
+			student.AcademicYear,
+			student.AdvisorID,
+			student.CreatedAt,
+		)
+	} else {
+		_, err = r.db.ExecContext(ctx, query,
+			student.ID,
+			student.UserID,
+			student.StudentID,
+			student.ProgramStudy,
+			student.AcademicYear,
+			student.AdvisorID,
+			student.CreatedAt,
+		)
+	}
+
+	return err
+}
+
 func (r *studentRepository) GetAllStudentsByRole(ctx context.Context, roleName string) ([]models.GetStudent, error) {
 	query := `
 		SELECT 
-					s.id, 
-					s.user_id, 
-					s.student_id, 
-					s.program_study, 
-					s.academy_year,
-					u.full_name, 
-					u.username, 
-					u.email,
-					u.is_active,
-					r.name as role_name -- Ambil nama role
-				FROM students s
-				JOIN users u ON s.user_id = u.id
-				JOIN roles r ON u.role_id = r.id
-				WHERE r.name = $1
-				ORDER BY u.full_name ASC
+			s.id, 
+			s.user_id, 
+			s.student_id, 
+			s.program_study, 
+			s.academy_year,
+			u.full_name, 
+			u.username, 
+			u.email,
+			u.is_active,
+			r.name as role_name
+		FROM students s
+		JOIN users u ON s.user_id = u.id
+		JOIN roles r ON u.role_id = r.id
+		WHERE r.name = $1
+		ORDER BY u.full_name ASC
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, roleName)
@@ -117,7 +132,7 @@ func (r *studentRepository) GetStudentByID(ctx context.Context, id string) (mode
 	`
 
 	var s models.GetStudent
-	
+
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&s.ID,
 		&s.UserID,

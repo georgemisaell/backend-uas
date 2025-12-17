@@ -12,19 +12,34 @@ import (
 
 func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 
-	api := app.Group("/api/v1") // (tidak perlu login)
+	// Insialisasi Repository
+	userRepo := repository.NewUserRepository(postgreSQL)
+	studentRepo := repository.NewStudentRepository(postgreSQL)
+	lecturerRepo := repository.NewLecturerRepository(postgreSQL)
+	achRepo := repository.NewAchievementRepository(postgreSQL, mongoDB)
+	reportRepo := repository.NewReportRepository(postgreSQL)
 
-	// Autentikasi & Otorisasi 
+	// Insialisasi Service
+	authService := services.NewAuthService(userRepo)
+	userService := services.NewUserService(postgreSQL, userRepo, studentRepo, lecturerRepo)
+	studentService := services.NewStudentService(studentRepo)
+	lecturerService := services.NewLecturerService(lecturerRepo)
+	achService := services.NewAchievementService(achRepo)
+	reportService := services.NewReportService(reportRepo, achRepo)
+
+	// Definisi Route
+	api := app.Group("/api/v1")
+
+	// Auth Routes (Public)
 	auth := api.Group("/auth")
-	auth.Post("/login", services.Login)
-	auth.Post("/refresh", services.Refresh)
-	auth.Get("/profile", middleware.AuthRequired(), services.GetProfile)
+	auth.Post("/login", authService.Login)
+	auth.Post("/refresh", authService.Refresh)
+	auth.Get("/profile", middleware.AuthRequired(), authService.GetProfile)
 
-	// Protected routes (perlu login) 
-	protected := api.Group("", middleware.AuthRequired()) 
-	
+	// Protected Routes (Perlu Login)
+	protected := api.Group("", middleware.AuthRequired())
+
 	// Users (Admin)
-	userService := services.NewUserService(postgreSQL)
 	protected.Post("/users", middleware.RequirePermission("users:create"), userService.CreateUser)
 	protected.Get("/users", middleware.RequirePermission("users:read"), userService.GetAllUsers)
 	protected.Get("/users/:id", middleware.RequirePermission("users:read"), userService.GetUserByID)
@@ -33,21 +48,15 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	protected.Put("/users/:id/role", userService.UpdateUserRole)
 
 	// Students (Admin)
-	studentRepo := repository.NewStudentRepository(postgreSQL)
-	studentService := services.NewStudentService(studentRepo)
 	protected.Get("/students", middleware.RequirePermission("students:read"), studentService.GetStudents)
 	protected.Get("/students/:id", middleware.RequirePermission("students:read"), studentService.GetStudentByID)
 	protected.Put("/students/:id/advisor", middleware.RequirePermission("students:update"), studentService.UpdateStudentAdvisor)
 
 	// Lectures (Admin)
-	lecturerRepo := repository.NewLecturerRepository(postgreSQL)
-  lecturerService := services.NewLecturerService(lecturerRepo)
 	protected.Get("/lecturers", middleware.RequirePermission("lecturers:read"), lecturerService.GetLecturers)
 	protected.Get("/lecturers/:id/advisees", middleware.RequirePermission("lecturers:read"), lecturerService.GetLecturerAdvisees)
 
 	// Achievements (Mahasiswa)
-	achRepo := repository.NewAchievementRepository(postgreSQL, mongoDB)
-	achService := services.NewAchievementService(achRepo)
 	protected.Post("/achievements", middleware.RequirePermission("achievements:create"), achService.CreateAchievement)
 	protected.Put("/achievements/:id", middleware.RequirePermission("achievements:update"), achService.UpdateAchievement)
 	protected.Delete("/achievements/:id", middleware.RequirePermission("achievements:delete"), achService.DeleteAchievement)
@@ -66,8 +75,6 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	protected.Get("/achievements", middleware.RequirePermission("achievements:read"), achService.GetAllAchievements)
 
 	// Reports & Analitycs 
-	reportRepo := repository.NewReportRepository(postgreSQL)
-	reportService := services.NewReportService(reportRepo, achRepo)
 	reports := protected.Group("/reports")
 	reports.Get("/statistics", middleware.RequirePermission("reports:read"), reportService.GetSystemStatistics)
 	reports.Get("/student/:id", middleware.RequirePermission("reports:read"), reportService.GetStudentReport)

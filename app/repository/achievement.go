@@ -24,7 +24,7 @@ type AchievementRepository interface {
     VerifyAchievement(ctx context.Context, id string, verifierUserID string) error
     RejectAchievement(ctx context.Context, id string, verifierUserID string, note string) error
     CheckStudentAdvisorRelationship(ctx context.Context, lecturerID string, studentID string) (bool, error)
-    GetAllReferences(ctx context.Context) ([]models.AchievementReference, map[string]string, map[string]string, error)
+    GetAllReferences(ctx context.Context, filterUserID string) ([]models.AchievementReference, map[string]string, map[string]string, error)
     GetMongoDetailsByIDs(ctx context.Context, mongoIDs []string) (map[string]models.AchievementMongo, error)
     GetAchievementReferenceWithDetail(ctx context.Context, id string) (models.AchievementResponse, error)
     GetMongoDetailByID(ctx context.Context, mongoID string) (models.AchievementMongo, error)
@@ -231,7 +231,7 @@ func (r *achievementRepository) CheckStudentAdvisorRelationship(ctx context.Cont
     return count > 0, nil
 }
 
-func (r *achievementRepository) GetAllReferences(ctx context.Context) ([]models.AchievementReference, map[string]string, map[string]string, error) {
+func (r *achievementRepository) GetAllReferences(ctx context.Context, filterUserID string) ([]models.AchievementReference, map[string]string, map[string]string, error) {
     query := `
         SELECT 
             ar.id, ar.student_id, ar.mongo_achievement_id, ar.status, ar.created_at,
@@ -239,10 +239,16 @@ func (r *achievementRepository) GetAllReferences(ctx context.Context) ([]models.
         FROM achievement_references ar
         JOIN students s ON ar.student_id = s.id
         JOIN users u ON s.user_id = u.id
-        ORDER BY ar.created_at DESC
     `
-    
-    rows, err := r.pg.QueryContext(ctx, query)
+    var args []interface{}
+    if filterUserID != "" {
+        query += ` WHERE u.id = $1`
+        args = append(args, filterUserID)
+    }
+
+    query += ` ORDER BY ar.created_at DESC`
+
+    rows, err := r.pg.QueryContext(ctx, query, args...)
     if err != nil {
         return nil, nil, nil, err
     }

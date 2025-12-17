@@ -14,12 +14,13 @@ import (
 type AchievementService interface {
 	CreateAchievement(c *fiber.Ctx) error
 	UpdateAchievement(c *fiber.Ctx) error
-  DeleteAchievement(c *fiber.Ctx) error
+    DeleteAchievement(c *fiber.Ctx) error
 	SubmitAchievement(c *fiber.Ctx) error
 	VerifyAchievement(c *fiber.Ctx) error
 	RejectAchievement(c *fiber.Ctx) error
 	GetAllAchievements(c *fiber.Ctx) error
 	GetAchievementDetail(c *fiber.Ctx) error
+    GetAchievementHistory(c *fiber.Ctx) error
 }
 
 type achievementService struct {
@@ -310,7 +311,23 @@ func (s *achievementService) RejectAchievement(c *fiber.Ctx) error {
 
 func (s *achievementService) GetAllAchievements(c *fiber.Ctx) error {
   
-    pgRefs, names, nims, err := s.repo.GetAllReferences(c.Context())
+    // 1. Ambil Info User
+    roleName := c.Locals("role_name").(string)
+    userIDLocal := c.Locals("user_id") // ID User Login
+
+    // Variable untuk filter query
+    var filterUserID string = ""
+
+    if roleName == "Mahasiswa" {
+        switch v := userIDLocal.(type) {
+        case string:
+            filterUserID = v
+        case uuid.UUID:
+            filterUserID = v.String()
+        }
+    }
+
+    pgRefs, names, nims, err := s.repo.GetAllReferences(c.Context(), filterUserID)
     if err != nil {
         return c.Status(500).JSON(fiber.Map{"message": "Gagal mengambil data referensi"})
     }
@@ -369,7 +386,7 @@ func (s *achievementService) GetAchievementDetail(c *fiber.Ctx) error {
     }
 
     userIDLocal := c.Locals("user_id")
-    roleName := c.Locals("role_name").(string) // Pastikan middleware set role_name
+    roleName := c.Locals("role_name").(string)
 
     if roleName == "Mahasiswa" && userIDLocal != nil {
         currentUserID := ""
@@ -400,5 +417,81 @@ func (s *achievementService) GetAchievementDetail(c *fiber.Ctx) error {
     return c.JSON(fiber.Map{
         "success": true,
         "data":    refData,
+    })
+}
+
+func (s *achievementService) GetAchievementHistory(c *fiber.Ctx) error {
+    id := c.Params("id")
+
+    data, err := s.repo.GetAchievementReferenceWithDetail(c.Context(), id)
+    if err != nil {
+        return c.Status(404).JSON(fiber.Map{"message": "Prestasi tidak ditemukan"})
+    }
+
+    // VALIDASI AKSES
+    userIDLocal := c.Locals("user_id")
+    roleName := c.Locals("role_name").(string)
+    
+    if roleName == "Mahasiswa" && userIDLocal != nil {
+        currentUserID := ""
+        switch v := userIDLocal.(type) {
+        case string: currentUserID = v
+        case uuid.UUID: currentUserID = v.String()
+        }
+
+        myStudentID, _ := s.repo.GetStudentIDByUserID(c.Context(), currentUserID)
+        if myStudentID != data.StudentID {
+            return c.Status(403).JSON(fiber.Map{"message": "Anda tidak memiliki akses ke detail prestasi ini"})
+        }
+    }
+
+    var histories []models.HistoryItem
+
+    // DRAFT (Pasti ada karena ada created_at)
+    histories = append(histories, models.HistoryItem{
+        Action:    "Draft Dibuat",
+        Timestamp: data.CreatedAt,
+        Actor:     data.StudentName,
+        Note:      "Prestasi disimpan sebagai draft",
+    })
+
+    // SUBMITTED (Cek apakah submitted_at ada isinya?)
+    if data.SubmittedAt != nil {
+        histories = append(histories, models.HistoryItem{
+            Action:    "Disubmit",
+            Timestamp: *data.SubmittedAt, // Dereference pointer
+            Actor:     data.StudentName,
+            Note:      "Menunggu verifikasi Dosen Wali",
+        })
+    }
+
+    // VERIFIED / REJECTED (Cek status akhir & verified_at)
+    if data.VerifiedAt != nil {
+        action := ""
+        actor := "Dosen Wali"
+        note := ""
+
+      switch data.Status {
+        case "verified":
+            action = "Diverifikasi"
+            note = "Prestasi valid dan disetujui"
+        case "rejected":
+            action = "Ditolak"
+            note = data.RejectionNote
+        }
+
+        if action != "" {
+            histories = append(histories, models.HistoryItem{
+                Action:    action,
+                Timestamp: *data.VerifiedAt,
+                Actor:     actor, 
+                Note:      note,
+            })
+        }
+    }
+
+    return c.JSON(fiber.Map{
+        "success": true,
+        "data":    histories,
     })
 }

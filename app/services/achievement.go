@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"time"
 	"uas/app/models"
 	"uas/app/repository"
@@ -21,6 +22,7 @@ type AchievementService interface {
 	GetAllAchievements(c *fiber.Ctx) error
 	GetAchievementDetail(c *fiber.Ctx) error
     GetAchievementHistory(c *fiber.Ctx) error
+    UploadAttachment(c *fiber.Ctx) error
 }
 
 type achievementService struct {
@@ -493,5 +495,58 @@ func (s *achievementService) GetAchievementHistory(c *fiber.Ctx) error {
     return c.JSON(fiber.Map{
         "success": true,
         "data":    histories,
+    })
+}
+
+func (s *achievementService) UploadAttachment(c *fiber.Ctx) error {
+    id := c.Params("id")
+
+    userID, err := helpers.GetUserIDFromContext(c)
+    if err != nil {
+        return c.Status(401).JSON(fiber.Map{"message": err.Error()})
+    }
+    
+    data, err := s.repo.GetAchievementByID(c.Context(), id)
+    if err != nil {
+        return c.Status(404).JSON(fiber.Map{"message": "Prestasi tidak ditemukan"})
+    }
+
+    studentID, _ := s.repo.GetStudentIDByUserID(c.Context(), userID)
+    if data.StudentID != studentID {
+        return c.Status(403).JSON(fiber.Map{"message": "Anda tidak berhak upload file ke prestasi ini"})
+    }
+
+    if data.Status != "draft" {
+        return c.Status(400).JSON(fiber.Map{"message": "Upload gagal: Prestasi sudah disubmit/diverifikasi"})
+    }
+
+    file, err := c.FormFile("file")
+    if err != nil {
+        return c.Status(400).JSON(fiber.Map{"message": "File tidak ditemukan. Gunakan key form-data 'file'"})
+    }
+
+    uniqueFileName := fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename)
+    filePath := fmt.Sprintf("./uploads/%s", uniqueFileName)
+
+    if err := c.SaveFile(file, filePath); err != nil {
+        return c.Status(500).JSON(fiber.Map{"message": "Gagal menyimpan file ke server"})
+    }
+
+    attachment := models.Attachment{
+        FileName:   file.Filename,
+        FileURL:    "/uploads/" + uniqueFileName,
+        FileType:   file.Header.Get("Content-Type"),
+        UploadedAt: time.Now(),
+    }
+
+    err = s.repo.AddAttachmentToMongo(c.Context(), data.MongoAchievementID, attachment)
+    if err != nil {
+        return c.Status(500).JSON(fiber.Map{"message": "Gagal mencatat file ke database"})
+    }
+
+    return c.JSON(fiber.Map{
+        "success": true,
+        "message": "File berhasil diupload",
+        "data":    attachment,
     })
 }

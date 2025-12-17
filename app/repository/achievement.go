@@ -28,6 +28,7 @@ type AchievementRepository interface {
     GetMongoDetailsByIDs(ctx context.Context, mongoIDs []string) (map[string]models.AchievementMongo, error)
     GetAchievementReferenceWithDetail(ctx context.Context, id string) (models.AchievementResponse, error)
     GetMongoDetailByID(ctx context.Context, mongoID string) (models.AchievementMongo, error)
+    AddAttachmentToMongo(ctx context.Context, mongoID string, attachment models.Attachment) error
 }
 
 type achievementRepository struct {
@@ -351,4 +352,24 @@ func (r *achievementRepository) GetMongoDetailByID(ctx context.Context, mongoID 
     }
 
     return result, nil
+}
+
+func (r *achievementRepository) AddAttachmentToMongo(ctx context.Context, mongoID string, attachment models.Attachment) error {
+    oid, err := primitive.ObjectIDFromHex(mongoID)
+    if err != nil {
+        return err
+    }
+
+    filter := bson.M{"_id": oid}
+    update := bson.M{
+        "$push": bson.M{"attachments": attachment},
+        "$set":  bson.M{"updatedAt": time.Now()},
+    }
+
+    _, err = r.mongo.Collection("achievements").UpdateOne(ctx, filter, update)
+    if err != nil {
+        return fmt.Errorf("gagal menambahkan attachment ke mongo: %w", err)
+    }
+
+    return nil
 }

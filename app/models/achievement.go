@@ -24,6 +24,7 @@ type AchievementMongo struct {
 	Details         map[string]interface{} `bson:"details" json:"details"`
 	Tags            []string               `bson:"tags" json:"tags"`
 	Points          int                    `bson:"points" json:"points"`
+	Attachments 		[]Attachment 					 `bson:"attachments" json:"attachments"`
 	CreatedAt       time.Time              `bson:"createdAt" json:"created_at"`
 	UpdatedAt       time.Time              `bson:"updatedAt" json:"updated_at"`
 }
@@ -64,4 +65,11 @@ type HistoryItem struct {
 	Timestamp time.Time `json:"timestamp"`
 	Actor     string    `json:"actor"`
 	Note      string    `json:"note,omitempty"`
+}
+
+type Attachment struct {
+	FileName   string    `bson:"fileName" json:"file_name"`
+	FileURL    string    `bson:"fileUrl" json:"file_url"`
+	FileType   string    `bson:"fileType" json:"file_type"`
+	UploadedAt time.Time `bson:"uploadedAt" json:"uploaded_at"`
 }

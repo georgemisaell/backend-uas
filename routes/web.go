@@ -52,13 +52,16 @@ func SetupRoutes(app *fiber.App, postgreSQL *sql.DB, mongoDB *mongo.Database) {
 	protected.Put("/achievements/:id", middleware.RequirePermission("achievements:update"), achService.UpdateAchievement)
 	protected.Delete("/achievements/:id", middleware.RequirePermission("achievements:delete"), achService.DeleteAchievement)
 	protected.Post("/achievements/:id/submit", middleware.RequirePermission("achievements:update"), achService.SubmitAchievement)
+	protected.Post("/achievements/:id/attachments", middleware.RequirePermission("achievements:update"), achService.UploadAttachment)
 
 	// Achievements (Dosen Wali)
 	protected.Post("/achievements/:id/verify", middleware.RequirePermission("achievements:verify"), achService.VerifyAchievement)
 	protected.Post("/achievements/:id/reject", middleware.RequirePermission("achievements:reject"), achService.RejectAchievement)
 
 	// Achievements (Admin)
-	protected.Get("/achievements", middleware.RequirePermission("achievements:read"), achService.GetAllAchievements)
 	protected.Get("/achievements/:id", middleware.RequirePermission("achievements:read"), achService.GetAchievementDetail)
 	protected.Get("/achievements/:id/history", middleware.RequirePermission("achievements:read"), achService.GetAchievementHistory)
+
+	// Achievements (All Role)
+	protected.Get("/achievements", middleware.RequirePermission("achievements:read"), achService.GetAllAchievements)
 }

@@ -102,7 +102,7 @@ Gunakan perintah berikut untuk menjalankan migration database:
 
 ```bash
 migrate -path database/migrations \
-  -database "postgres://postgres:root@localhost:5432/uas?sslmode=disable" up
+  -database "postgres://<user>:<password>@<host>:<port>/<db>?sslmode=disable" up
 ```
 
 Migration ini akan membuat:
